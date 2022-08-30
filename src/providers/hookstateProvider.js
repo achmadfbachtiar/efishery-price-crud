@@ -9,6 +9,8 @@ const initialState = createState({
   areaOptions: [],
   sizeOptions: [],
   provinces: [],
+  createFormVisible: false,
+  isLoading: false
 });
 
 export const useGlobalState = () => {
@@ -16,8 +18,10 @@ export const useGlobalState = () => {
 
   return {
     fetchPriceList: () => {
+      state.isLoading.set(true);
       store.read("list").then(data => {
         state.priceList.set(data.reverse());
+        state.isLoading.set(false);
       });
     },
     priceList: () => state.priceList.value,
@@ -40,6 +44,7 @@ export const useGlobalState = () => {
     },
     sizeOptions: () => state.sizeOptions.value,
     updateItemList: (uuid, selectedItem) => {
+      state.isLoading.set(true);
       store.edit("list", {
         search: { uuid: uuid },
         set: selectedItem
@@ -47,6 +52,7 @@ export const useGlobalState = () => {
       .then((res) => {
         store.read("list").then(data => {
           state.priceList.set(data.reverse());
+          state.isLoading.set(false);
         });
       })
       .catch((error) => {
@@ -54,19 +60,31 @@ export const useGlobalState = () => {
       })
     },
     saveNewData: (data) => {
+      state.isLoading.set(true);
       store.append("list", [data])
       .then(res => {
-        console.log("res", res);
+        store.read("list").then(data => {
+          state.priceList.set(data.reverse());
+          state.isLoading.set(false);
+        });
       });
     },
     deleteItem: (uuid) => {
-      console.log("deleteItem", uuid)
+      state.isLoading.set(true);
       store.delete("list", {
         search: { uuid: uuid },
       })
       .then(res => {
-        console.log("res", res);
+        store.read("list").then(data => {
+          state.priceList.set(data.reverse());
+          state.isLoading.set(false);
+        });
       });
     },
+    createFormToggle: (isVisible) => {
+      state.createFormVisible.set(isVisible)
+    },
+    createFormVisible: () => state.createFormVisible.value,
+    isLoading: () => state.isLoading.value,
   }
 }

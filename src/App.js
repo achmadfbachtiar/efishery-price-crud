@@ -1,19 +1,14 @@
 import './App.scss';
 import 'antd/dist/antd.css'; 
-import { Layout, Card, Button, DatePicker, Drawer, Form, Input, Select, Space, Row, Col } from 'antd';
-import { EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined, PlusCircleOutlined } from '@ant-design/icons';
+import { Layout, Card, Button, Modal, Select, Row, Col, Input, DatePicker } from 'antd';
+import { EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined, PlusCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { ReactElement, useEffect, useState } from "react";
 import DataTable from 'react-data-table-component';
 import moment from 'moment';
-import { MdModeEdit, MdDelete, MdCheckCircle, MdCancel, MdOutlineAddCircle } from 'react-icons/md';
 import { useGlobalState } from './providers/hookstateProvider';
-import { v4 as uuidv4 } from 'uuid';
-const SteinStore = require("stein-js-client");
-const store = new SteinStore(
-  "https://stein.efishery.com/v1/storages/5e1edf521073e315924ceab4"
-);
+import CreateForm from './components/CreateForm';
 
-const { Header, Footer, Sider, Content } = Layout;
+const { Header, Footer, Content } = Layout;
 const { Option } = Select;
 
 function App() {
@@ -21,28 +16,10 @@ function App() {
   const [isEdit, setIsEdit] = useState(false);
   const [selectedItem, setSelectedItem] = useState({});
   const [cities, setCities] = useState([]);
-  const [newData, setNewdata] = useState({
-      uuid: "",
-      komoditas: "",
-      area_provinsi: "",
-      area_kota: "",
-      size: "",
-      price: "",
-      tgl_parsed: "",
-      timestamp: ""
-  });
-  const [visible, setVisible] = useState(false);
-
-  const showDrawer = () => {
-    setVisible(true);
-  };
-
-  const onClose = () => {
-    setVisible(false);
-  };
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteItemUuid, setDeleteItemUuid] = useState("");
 
   useEffect(() => {
-    const asd = uuidv4();
     fetchPriceList();
     fetchAreaOptions();
     fetchSizeOptions();
@@ -53,12 +30,6 @@ function App() {
     const citiesTemp = areaTemp.filter(city => city.province === selectedItem.area_provinsi)
     setCities(citiesTemp);
   }, [selectedItem])
-
-  useEffect(() => {
-    let areaTemp = Object.assign([], state.areaOptions())
-    const citiesTemp = areaTemp.filter(city => city.province === newData.area_provinsi)
-    setCities(citiesTemp);
-  }, [newData])
 
   const fetchPriceList = async () => {
     try {
@@ -90,8 +61,14 @@ function App() {
   }
 
   const deleteItem = async (uuid) => {
-    state.deleteItem(uuid);
+    setDeleteItemUuid(uuid);
+    setDeleteModalVisible(true);
   }
+
+  const handleOkDelete = () => {
+    state.deleteItem(deleteItemUuid);
+    setDeleteModalVisible(false);
+  };
 
   const handleChangeInput = async (event, key) => {
     let tempItem = Object.assign({}, selectedItem);
@@ -100,43 +77,25 @@ function App() {
   }
 
   const handleChangeSelect = async (event, key) => {
-    let tempItem = Object.assign({}, selectedItem);
-    tempItem[key] = event
-    setSelectedItem(tempItem)
-  }
-
-  const handleChangeInputNew = async (event, key) => {
-    let tempItem = Object.assign({}, newData);
-    tempItem[key] = event.target.value
-    setNewdata(tempItem)
-  }
-
-  const handleChangeSelectNew = async (event, key) => {
-    console.log("event", event)
-    console.log("key", key)
-    let tempItem = Object.assign({}, newData);
-    tempItem[key] = event
-    setNewdata(tempItem)
+    if(key === "area_provinsi") {
+      let tempItem = Object.assign({}, selectedItem);
+      tempItem[key] = event;
+      tempItem['area_kota'] = null;
+      setSelectedItem(tempItem);
+    } else {
+      let tempItem = Object.assign({}, selectedItem);
+      tempItem[key] = event;
+      setSelectedItem(tempItem);
+    }
   }
 
   const save = async (uuid) => {
-    state.updateItemList(uuid, selectedItem)
+    state.updateItemList(uuid, selectedItem);
     setIsEdit(false);
   }
 
   const addData = () => {
-    setVisible(true);
-  }
-
-  const saveNewData = () => {
-    setVisible(false);
-    let newDataTemp = Object.assign({}, newData);
-
-    newDataTemp.uuid = uuidv4();
-    newDataTemp.tgl_parsed = moment(newDataTemp.tgl_parsed).format("YYYY-MM-DDTHH:mm:SSZ");
-    newDataTemp.timestamp = Math.floor(new Date(newDataTemp.tgl_parsed).getTime() / 1000);
-
-    state.saveNewData(newDataTemp);
+    state.createFormToggle(true);
   }
 
   const columns = [
@@ -149,7 +108,7 @@ function App() {
             {isEdit ?
               row.uuid === selectedItem.uuid ? 
               <div key={row.uuid}>
-                <input type="text" id="commodity" name="commodity" value={selectedItem.komoditas} onChange={(event) => handleChangeInput(event, 'komoditas')} />
+                <Input placeholder="Masukan Komoditas" value={selectedItem.komoditas} onChange={(event) => handleChangeInput(event, 'komoditas')} />
               </div>
               :
               <div key={row.uuid}>{row.komoditas}</div>
@@ -168,17 +127,17 @@ function App() {
          {isEdit ?
            row.uuid === selectedItem.uuid ? 
            <div key={row.uuid}>
-            <select value={selectedItem.area_provinsi} onChange={(event) => handleChangeInput(event, 'area_provinsi')}>
+            <Select style={{width: '175px'}} placeholder="Pilih provinsi" value={selectedItem.area_provinsi} onChange={(event) => handleChangeSelect(event, 'area_provinsi')}>
               {
                 state.provinces().map((data, index) => {
                   return(
-                    <option value={data.province}>
+                    <Option key={index} value={data.province}>
                       {data.province}
-                    </option>
+                    </Option>
                   )
                 })
               }
-            </select>
+            </Select>
            </div>
            :
            <div key={row.uuid}>{row.area_provinsi}</div>
@@ -197,17 +156,17 @@ function App() {
          {isEdit ?
            row.uuid === selectedItem.uuid ? 
            <div key={row.uuid}>
-             <select value={selectedItem.area_kota} onChange={(event) => handleChangeInput(event, 'area_kota')}>
+            <Select style={{width: '175px'}} placeholder="Pilih area kota" value={selectedItem.area_kota} onChange={(event) => handleChangeSelect(event, 'area_kota')}>
               {
                 cities.map((data, index) => {
                   return(
-                    <option value={data.city}>
+                    <Option key={index} value={data.city}>
                       {data.city}
-                    </option>
+                    </Option>
                   )
                 })
               }
-            </select>
+            </Select>
            </div>
            :
            <div key={row.uuid}>{row.area_kota}</div>
@@ -226,17 +185,17 @@ function App() {
          {isEdit ?
            row.uuid === selectedItem.uuid ? 
            <div key={row.uuid}>
-            <select value={selectedItem.size} onChange={(event) => handleChangeInput(event, 'size')}>
+            <Select placeholder="Pilih ukuran" value={selectedItem.size} onChange={(event) => handleChangeSelect(event, 'size')}>
               {
                 state.sizeOptions().map((data, index) => {
                   return(
-                    <option value={data.size}>
+                    <Option key={index} value={data.size}>
                       {data.size}
-                    </option>
+                    </Option>
                   )
                 })
               }
-            </select>
+            </Select>
            </div>
            :
            <div key={row.uuid}>{row.size}</div>
@@ -255,7 +214,7 @@ function App() {
         {isEdit ?
           row.uuid === selectedItem.uuid ? 
           <div key={row.uuid}>
-            <input type="text" id="price" name="price" value={selectedItem.price} onChange={(event) => handleChangeInput(event, 'price')} />
+            <Input placeholder="Masukan harga" value={selectedItem.price} onChange={(event) => handleChangeInput(event, 'price')} />
           </div>
           :
           <div key={row.uuid}>{row.price}</div>
@@ -275,7 +234,13 @@ function App() {
            {isEdit ?
              row.uuid === selectedItem.uuid ? 
              <div key={row.uuid}>
-               <input type="date" id="date" name="date" value={moment(selectedItem.tgl_parsed).format('YYYY-MM-DD')} onChange={(event) => handleChangeInput(event, 'tgl_parsed')} />
+                <DatePicker
+                  style={{
+                    width: '100%',
+                  }}
+                  defaultValue={moment(selectedItem.tgl_parsed, 'YYYY-MM-DD')}
+                  onChange={(date, dateString) => handleChangeSelect(dateString, 'tgl_parsed')}
+                />
              </div>
              :
              <div key={row.uuid}>{moment(row.tgl_parsed).format('YYYY-MM-DD')}</div>
@@ -302,8 +267,8 @@ function App() {
               </div>
           :
             <div>
-              <Button shape="circle" type="text" icon={<EditOutlined className="icon-green" />}></Button>
-              <Button shape="circle" type="text" icon={<DeleteOutlined className="icon-red" />}></Button>
+              <Button shape="circle" type="text" onClick={() => edit(row)} icon={<EditOutlined className="icon-green" />}></Button>
+              <Button shape="circle" type="text" onClick={() => deleteItem(row.uuid)} icon={<DeleteOutlined className="icon-red" />}></Button>
             </div>
           }
         </div> 
@@ -311,173 +276,78 @@ function App() {
     },
   ];
 
+  const customStyles = {
+    headCells: {
+        style: {
+          fontSize: '14px',
+          fontWeight: 'bolder',
+          color: "#ffffff",
+          backgroundColor: "#1890ff",
+          minHeight: '56px',
+          paddingLeft: '16px',
+          paddingRight: '8px',
+        },
+    },
+};
+
   return (
     <div className="App">
       <Layout>
-        <Header>Header</Header>
-        <Content>
-          <Row>
-            <Col span={24}>
+        <Header>
+          <h2 style={{color: "white"}}>
+            DAFTAR HARGA KOMODITAS
+          </h2>
+        </Header>
+        <Content className='content'>
+          <Row style={{padding: '30px 0'}}>
+            <Col span={12} style={{textAlign: 'left'}}>
+              <h3>
+                TABEL DAFTAR HARGA
+              </h3>
+            </Col>
+            <Col span={12} style={{textAlign: 'right'}}>
               <Button type="primary" shape="round" icon={<PlusCircleOutlined />} onClick={() => addData()}>
                 Tambah Data
               </Button>
+            </Col>
+          </Row>
+          <Row>
+            <Col span={24}>
               <Card bordered={false}>
                 <DataTable
                   columns={columns}
                   data={state.priceList()}
                   pagination
+                  customStyles={customStyles}
+                  progressPending={state.isLoading()}
                 />
               </Card>
             </Col>
           </Row>
         </Content>
-        <Footer style={{ textAlign: 'center' }}>Ant Design ©2018 Created by Ant UED</Footer>
+        <Footer style={{ textAlign: 'center' }}>efishery</Footer>
+        <Modal 
+          title="Hapus Item?" 
+          visible={deleteModalVisible} 
+          footer={[
+            <Button key="back" onClick={() => setDeleteModalVisible(false)}>
+              Batal
+            </Button>,
+            <Button key="submit" type="primary" onClick={() => handleOkDelete()} danger>
+              Hapus
+            </Button>,
+          ]}
+        >
+          <ExclamationCircleOutlined style={{ fontSize: "32px", marginBottom: "10px", color: "#faad14" }} />
+          <p style={{fontSize: "16px", fontWeight: 'bold', margin: 0}}>
+            Data yang di hapus tidak dapat di lihat kembali.
+          </p>
+          <p>
+            Apakah anda yakin ingin menghapus data ini?
+          </p>
+        </Modal>
       </Layout>
-      <Drawer
-        title="Tambah Data Baru"
-        onClose={onClose}
-        visible={visible}
-        bodyStyle={{
-          paddingBottom: 80,
-        }}
-        placement={"top"}
-        extra={
-          <Space>
-            <Button onClick={onClose}>Cancel</Button>
-            <Button onClick={saveNewData} type="primary">
-              Submit
-            </Button>
-          </Space>
-        }
-      >
-        <Form layout="vertical" hideRequiredMark>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="komoditas"
-                label="Komoditas"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Mohon masukan komoditas',
-                  },
-                ]}
-              >
-                <Input placeholder="Masukan Komoditas" onChange={(event) => handleChangeInputNew(event, 'komoditas')} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="size"
-                label="Ukuran"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Silahkan pilih ukuran',
-                  },
-                ]}
-              >
-                <Select placeholder="Pilih ukuran" onChange={(event) => handleChangeSelectNew(event, 'size')}>
-                  {
-                    state.sizeOptions().map((data, index) => {
-                      return(
-                        <Option key={index} value={data.size}>
-                          {data.size}
-                        </Option>
-                      )
-                    })
-                  }
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="area_provinsi"
-                label="Area Provinsi"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Silahkan pilih area provinsi',
-                  },
-                ]}
-              >
-                <Select placeholder="Pilih area provinsi" onChange={(event) => handleChangeSelectNew(event, 'area_provinsi')}>
-                  {
-                    state.provinces().map((data, index) => {
-                      return(
-                        <Option key={index} value={data.province}>
-                          {data.province}
-                        </Option>
-                      )
-                    })
-                  }
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="area_kota"
-                label="Area Kota"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Silahkan pilih area kota',
-                  },
-                ]}
-              >
-                <Select placeholder="Pilih area kota" onChange={(event) => handleChangeSelectNew(event, 'area_kota')}>
-                  {
-                    cities.map((data, index) => {
-                      return(
-                        <Option key={index} value={data.city}>
-                          {data.city}
-                        </Option>
-                      )
-                    })
-                  }
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="price"
-                label="Harga"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Mohon masukan harga',
-                  },
-                ]}
-              >
-                <Input placeholder="Masukan harga" onChange={(event) => handleChangeInputNew(event, 'price')} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="tgl_parsed"
-                label="Tanggal"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Silahkan pilih ukuran',
-                  },
-                ]}
-              >
-                <DatePicker
-                  style={{
-                    width: '100%',
-                  }}
-                  onChange={(date, dateString) => handleChangeSelectNew(dateString, 'tgl_parsed')}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Drawer>
+      <CreateForm />
     </div>
   );
 }
