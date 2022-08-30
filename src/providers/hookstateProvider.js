@@ -17,7 +17,7 @@ export const useGlobalState = () => {
   return {
     fetchPriceList: () => {
       store.read("list").then(data => {
-        state.priceList.set(data);
+        state.priceList.set(data.reverse());
       });
     },
     priceList: () => state.priceList.value,
@@ -46,12 +46,27 @@ export const useGlobalState = () => {
       })
       .then((res) => {
         store.read("list").then(data => {
-          state.priceList.set(data);
+          state.priceList.set(data.reverse());
         });
       })
       .catch((error) => {
         console.error(error);
       })
+    },
+    saveNewData: (data) => {
+      store.append("list", [data])
+      .then(res => {
+        console.log("res", res);
+      });
+    },
+    deleteItem: (uuid) => {
+      console.log("deleteItem", uuid)
+      store.delete("list", {
+        search: { uuid: uuid },
+      })
+      .then(res => {
+        console.log("res", res);
+      });
     },
   }
 }
